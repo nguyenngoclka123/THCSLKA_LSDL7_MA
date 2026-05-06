@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bản đồ Việt Nam 34 tỉnh thành phố</title>
+
+    <!-- Thư viện Bản đồ & Icons -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+
+    <style>
+        :root {
+            --primary-color: #2ecc71;
+            --accent-color: #3498db;
+            --text-dark: #2c3e50;
+            --bg-light: #f4f7f9;
+        }
+
+        body {
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-light);
+        }
+
+        /* Tỷ lệ mới: Bản đồ 60% - Thông tin 40% */
+        #map { width: 60%; height: 100%; background: #aad3df; }
+        #info {
+            width: 40%;
+            padding: 25px;
+            background: #fff;
+            border-left: 1px solid #ddd;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Bé Sen Styling */
+        .besen-container { text-align: center; margin-bottom: 5px; }
+        .besen-img {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #ffedf2;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background: #fff;
+        }
+
+        .speech {
+            position: relative;
+            background: #eef6ff;
+            padding: 18px;
+            border-radius: 15px;
+            margin: 15px 0;
+            text-align: center;
+            width: 90%;
+            border: 1px solid #d1e3ff;
+            color: var(--text-dark);
+            font-size: 1em;
+            line-height: 1.5;
+        }
+        .speech::after {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 0 10px 10px 10px;
+            border-style: solid;
+            border-color: transparent transparent #eef6ff transparent;
+        }
+
+        /* Information Card rộng hơn */
+        .card {
+            padding: 25px;
+            border-radius: 15px;
+            background: #fff;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+            border-top: 6px solid var(--primary-color);
+            width: 100%;
+            animation: fadeIn 0.4s ease-out;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .card h3 { 
+            margin: 0 0 20px 0; 
+            color: #e74c3c; 
+            font-size: 1.5em;
+            border-bottom: 2px solid #f8f9fa;
+            padding-bottom: 12px;
+        }
+
+        /* Info Rows */
+        .info-row {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+        .info-row i {
+            margin-right: 15px;
+            font-size: 24px;
+            color: var(--accent-color);
+            width: 30px;
+            text-align: center;
+            margin-top: 2px;
+        }
+        .info-row b { font-size: 0.8em; color: #7f8c8d; margin-right: 8px; white-space: nowrap; }
+        .info-text { font-size: 0.8em; color: var(--text-dark); font-weight: 500; line-height: 1.4; }
+
+        .badge-container { margin-top: 20px; padding-top: 15px; border-top: 1px dashed #eee; }
+        .badge {
+            display: inline-block;
+            background: #f1f2f6;
+            color: #57606f;
+            padding: 8px 16px;
+            border-radius: 25px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .sea-label { text-align: center; pointer-events: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="info">
+    <div class="besen-container">
+        <img class="besen-img" src="besen.jpg" alt="Bé Sen" onerror="this.src='https://cdn-icons-png.flaticon.com/512/4392/4392457.png'">
+    </div>
+    
+    <div id="speech" class="speech">
+       Chào bạn! Hãy chọn một tỉnh trên bản đồ để mình giới thiệu nhé! 
+    </div>
+    
+    <div id="details"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+
+<script>
+    // ================= DATABASE (Dữ liệu mẫu) =================
+    const provinceData = {
+       "Hà Nội": { vitri: "Trung tâm Đồng bằng sông Hồng", danso: "≈ 8.5 triệu người", diinh: "Đồng bằng trung tâm, rìa phía Bắc và phía Tây có đồi núi thấp", kinhte: "Trung tâm kinh tế, chính trị, văn hóa và giáo dục lớn nhất miền Bắc" },
+    "Tuyên Quang": { vitri: "Vùng núi phía Bắc", danso: "≈ 1.7 triệu người", diinh: "Núi cao hiểm trở phía Bắc, thấp dần về phía Nam với các thung lũng", kinhte: "Phát triển kinh tế lâm nghiệp, thủy điện và du lịch lịch sử, sinh thái" },
+    "Lào Cai": { vitri: "Vùng núi cao biên giới phía Bắc", danso: "≈ 1.6 triệu người", diinh: "Địa hình núi cao, chia cắt mạnh, có đỉnh Fansipan hùng vĩ", kinhte: "Thế mạnh về kinh tế cửa khẩu, khoáng sản và du lịch nghỉ dưỡng (Sapa, Mù Cang Chải)" },
+    "Thái Nguyên": { vitri: "Cửa ngõ vùng núi phía Bắc", danso: "≈ 1.6 triệu người", diinh: "Vùng trung du với các dãy núi thấp và cánh đồng bằng phẳng", kinhte: "Trung tâm công nghiệp nặng, khai khoáng và vùng chè đặc sản" },
+    "Phú Thọ": { vitri: "Vùng chuyển tiếp giữa miền núi và đồng bằng", danso: "≈ 3.5 triệu người", diinh: "Địa hình đồi gò xen kẽ đồng bằng và núi cao", kinhte: "Kinh tế đa ngành: Công nghiệp chế biến, nông lâm nghiệp và du lịch tâm linh (Đền Hùng)" },
+    "Bắc Ninh": { vitri: "Đông Bắc bộ, cửa ngõ phía Đông Hà Nội", danso: "≈ 3.6 triệu người", diinh: "Chủ yếu là đồng bằng phù sa, ít đồi núi đơn lẻ", kinhte: "Trung tâm công nghiệp công nghệ cao, điện tử và làng nghề truyền thống" },
+    "Hưng Yên": { vitri: "Trái tim vùng Đồng bằng sông Hồng", danso: "≈ 2.4 triệu người", diinh: "Hoàn toàn là đồng bằng bằng phẳng", kinhte: "Công nghiệp chế biến, dịch vụ logistics và nông nghiệp thâm canh" },
+    "Hải Phòng": { vitri: "Ven biển Đông Bắc Bộ", danso: "≈ 4.2 triệu người", diinh: "Đồng bằng ven biển xen kẽ đồi núi thấp và hệ thống đảo (Cát Bà)", kinhte: "Thành phố cảng, trung tâm công nghiệp đóng tàu, cơ khí và du lịch biển" },
+    "Ninh Bình": { vitri: "Phía Nam Đồng bằng sông Hồng", danso: "≈ 3.1 triệu người", diinh: "Địa hình đa dạng: Đồng bằng, vùng trũng và vùng núi đá vôi kỳ thú", kinhte: "Mạnh về du lịch di sản (Tràng An, cố đô), công nghiệp vật liệu xây dựng" },
+    "Quảng Trị": { vitri: "Vùng Bắc Trung Bộ", danso: "≈ 1.5 triệu người", diinh: "Hẹp và dốc, từ núi cao phía Tây xuống đồng bằng nhỏ hẹp và biển phía Đông", kinhte: "Phát triển hành lang kinh tế Đông - Tây, năng lượng tái tạo và du lịch lịch sử" },
+    "Đà Nẵng": { vitri: "Duyên hải Nam Trung Bộ, tâm điểm trục Bắc - Nam", danso: "≈ 2.8 triệu người", diinh: "Núi cao phía Tây, đồng bằng nhỏ hẹp ven biển", kinhte: "Trung tâm kinh tế trọng điểm miền Trung, mạnh về du lịch và dịch vụ số" },
+    "Quảng Ngãi": { vitri: "Duyên hải Trung Bộ và Bắc Tây Nguyên", danso: "≈ 1.8 triệu người", diinh: "Núi rừng phía Tây sườn đông Trường Sơn, đồng bằng ven biển phía Đông", kinhte: "Công nghiệp lọc hóa dầu (Dung Quất), năng lượng mặt trời và kinh tế biển" },
+    "Gia Lai": { vitri: "Vùng núi và cao nguyên Trung bộ", danso: "≈ 3.1 triệu người", diinh: "Cao nguyên đất đỏ bazan bằng phẳng xen kẽ núi cao", kinhte: "Cây công nghiệp dài ngày (cà phê, cao su), thủy điện và chế biến nông lâm sản" },
+    "Khánh Hòa": { vitri: "Ven biển Nam Trung Bộ", danso: "≈ 1.6 triệu người", diinh: "Núi sát biển tạo nên nhiều vịnh đẹp và đồng bằng nhỏ hẹp", kinhte: "Du lịch biển đẳng cấp quốc tế, dịch vụ cảng biển và nuôi trồng hải sản" },
+    "Lâm Đồng": { vitri: "Nam Tây Nguyên và ven biển cực Nam Trung Bộ", danso: "≈ 2.6 triệu người", diinh: "Cao nguyên cao nhất Việt Nam và các dãy núi dốc về phía biển", kinhte: "Nông nghiệp ôn đới (rau, hoa), du lịch nghỉ dưỡng và năng lượng gió/mặt trời" },
+    "Đắk Lắk": { vitri: "Vùng trung tâm Tây Nguyên và duyên hải", danso: "≈ 2.4 triệu người", diinh: "Cao nguyên rộng lớn và vùng đồng bằng ven biển miền Trung", kinhte: "Thủ phủ cà phê, công nghiệp năng lượng tái tạo và du lịch văn hóa" },
+    "TP.HCM": { vitri: "Đầu mối giao thông Đông Nam Bộ", danso: "≈ 14 triệu người", diinh: "Đồng bằng bằng phẳng, thấp dần ra biển", kinhte: "Đầu tàu kinh tế, tài chính, công nghệ và dịch vụ của cả nước" },
+    "Đồng Nai": { vitri: "Đông Nam Bộ", danso: "≈ 4.2 triệu người", diinh: "Vùng đồi lượn sóng và đồng bằng cao", kinhte: "Trung tâm công nghiệp lớn nhất cả nước, hạ tầng sân bay quốc tế" },
+    "Tây Ninh": { vitri: "Vùng biên giới Đông Nam Bộ và cửa ngõ miền Tây", danso: "≈ 3 triệu người", diinh: "Đồng bằng chuyển tiếp, có núi Bà Đen là đỉnh cao duy nhất", kinhte: "Nông nghiệp quy mô lớn, kinh tế cửa khẩu và du lịch tâm linh" },
+    "Cần Thơ": { vitri: "Trung tâm vùng Đồng bằng sông Cửu Long", danso: "≈ 4.3 triệu người", diinh: "Đồng bằng phù sa sông Hậu, mạng lưới kênh rạch dày đặc", kinhte: "Thành phố trung tâm vùng, mạnh về dịch vụ, y tế, giáo dục và lúa gạo" },
+    "Vĩnh Long": { vitri: "Nằm giữa sông Tiền và sông Hậu", danso: "≈ 3.5 triệu người", diinh: "Hoàn toàn là đồng bằng phù sa ngọt, thấp và bằng phẳng", kinhte: "Vùng cây ăn trái đặc sản, lúa gạo và công nghiệp chế biến lương thực" },
+    "Đồng Tháp": { vitri: "Nằm trong vùng Đồng bằng sông Cửu Long, giáp Campuchia", danso: "≈ 3.2 triệu người", diinh: "Đồng bằng phù sa, vùng Đồng Tháp Mười ngập nước", kinhte: "Mạnh về lúa gạo, thủy sản và đặc sản Sen, hoa kiểng" },
+    "Cà Mau": { vitri: "Cực Nam Tổ quốc", danso: "≈ 2.1 triệu người", diinh: "Ba mặt giáp biển, vùng đất ngập mặn đặc trưng", kinhte: "Thế mạnh về nuôi trồng và chế biến tôm xuất khẩu, khí - điện - đạm" },
+    "An Giang": { vitri: "Vùng tứ giác Long Xuyên", danso: "≈ 3.7 triệu người", diinh: "Đồng bằng bằng phẳng xen kẽ vùng Thất Sơn (Bảy Núi) kỳ vĩ", kinhte: "Sản lượng lúa gạo lớn nhất cả nước, thủy sản nước ngọt và du lịch tâm linh" },
+    "Huế": { vitri: "Bắc Trung Bộ", danso: "≈ 1.1 triệu người", diinh: "Núi, đồi, đồng bằng và hệ đầm phá lớn nhất Đông Nam Á", kinhte: "Trung tâm di sản, du lịch văn hóa và y tế chuyên sâu" },
+    "Lai Châu": { vitri: "Vùng cao biên giới Tây Bắc", danso: "≈ 0.5 triệu người", diinh: "Núi cao, khe sâu, địa hình hiểm trở bậc nhất Việt Nam", kinhte: "Kinh tế lâm nghiệp, cây dược liệu và thủy điện" },
+    "Điện Biên": { vitri: "Cực Tây Bắc Bộ", danso: "≈ 0.6 triệu người", diinh: "Vùng núi xen kẽ các thung lũng lòng chảo rộng lớn", kinhte: "Du lịch lịch sử (Điện Biên Phủ) và nông lâm nghiệp" },
+    "Sơn La": { vitri: "Vùng núi cao Tây Bắc", danso: "≈ 1.3 triệu người", diinh: "Cao nguyên rộng lớn, địa hình chia cắt bởi sông Đà", kinhte: "Trung tâm thủy điện và vùng cây ăn trái lớn nhất miền Bắc" },
+    "Lạng Sơn": { vitri: "Đông Bắc Bộ, biên giới Việt - Trung", danso: "≈ 0.8 triệu người", diinh: "Vùng núi thấp và trung bình, nhiều thung lũng đá vôi", kinhte: "Kinh tế cửa khẩu sầm uất nhất miền Bắc, lâm nghiệp" },
+    "Quảng Ninh": { vitri: "Ven biển Đông Bắc", danso: "≈ 1.4 triệu người", diinh: "Núi biển đan xen, có hơn 2.000 hòn đảo trên vịnh Hạ Long", kinhte: "Trung tâm khai thác than, du lịch quốc tế và kinh tế biên mậu" },
+    "Thanh Hóa": { vitri: "Cửa ngõ miền Bắc và miền Trung", danso: "≈ 3.7 triệu người", diinh: "Đồng bằng rộng lớn thứ 3 cả nước, núi cao phía Tây", kinhte: "Kinh tế đa ngành, công nghiệp nặng (Nghi Sơn) và du lịch biển" },
+    "Nghệ An": { vitri: "Bắc Trung Bộ", danso: "≈ 3.4 triệu người", diinh: "Diện tích lớn nhất nước, đa dạng từ núi cao đến biển", kinhte: "Trung tâm văn hóa - giáo dục vùng, công nghiệp và nông nghiệp ứng dụng công nghệ cao" },
+    "Hà Tĩnh": { vitri: "Duyên hải Bắc Trung Bộ", danso: "≈ 1.3 triệu người", diinh: "Phía Tây là Trường Sơn Bắc, phía Đông là biển", kinhte: "Công nghiệp nặng (thép), cảng biển nước sâu và nông nghiệp" },
+    "Cao Bằng": { vitri: "Cực Bắc Việt Nam", danso: "≈ 0.5 triệu người", diinh: "Cao nguyên đá vôi, nhiều hang động và thác nước hùng vĩ", kinhte: "Phát triển du lịch công viên địa chất toàn cầu, kinh tế cửa khẩu" }  };
+
+    // ================= MERGE PLAN (34 VÙNG) =================
+    const mergerPlan = [
+        {id:1,name:"Hà Nội",old:["Hà Nội"]},
+        {id:2,name:"Tuyên Quang",old:["Hà Giang","Tuyên Quang"]},
+        {id:3,name:"Lào Cai",old:["Yên Bái","Lào Cai"]},
+        {id:4,name:"Thái Nguyên",old:["Bắc Kạn","Thái Nguyên"]},
+        {id:5,name:"Phú Thọ",old:["Vĩnh Phúc","Hòa Bình","Phú Thọ"]},
+        {id:6,name:"Bắc Ninh",old:["Bắc Giang","Bắc Ninh"]},
+        {id:7,name:"Hưng Yên",old:["Thái Bình","Hưng Yên"]},
+        {id:8,name:"Hải Phòng",old:["Hải Dương","Hải Phòng"]},
+        {id:9,name:"Ninh Bình",old:["Hà Nam","Nam Định","Ninh Bình"]},
+        {id:10,name:"Quảng Trị",old:["Quảng Bình","Quảng Trị"]},
+        {id:11,name:"Đà Nẵng",old:["Quảng Nam","Đà Nẵng"]},
+        {id:12,name:"Quảng Ngãi",old:["Kon Tum","Quảng Ngãi"]},
+        {id:13,name:"Gia Lai",old:["Bình Định","Gia Lai"]},
+        {id:14,name:"Khánh Hòa",old:["Ninh Thuận","Khánh Hòa"]},
+        {id:15,name:"Lâm Đồng",old:["Đắk Nông","Bình Thuận","Lâm Đồng"]},
+        {id:16,name:"Đắk Lắk",old:["Phú Yên","Đắk Lắk"]},
+        {id:17,name:"TP.HCM",old:["Hồ Chí Minh","Bình Dương","Vũng Tàu"]},
+        {id:18,name:"Đồng Nai",old:["Đồng Nai","Bình Phước"]},
+        {id:19,name:"Tây Ninh",old:["Tây Ninh","Long An"]},
+        {id:20,name:"Cần Thơ",old:["Cần Thơ","Sóc Trăng","Hậu Giang"]},
+        {id:21,name:"Vĩnh Long",old:["Bến Tre","Vĩnh Long","Trà Vinh"]},
+        {id:22,name:"Đồng Tháp",old:["Tiền Giang","Đồng Tháp"]},
+        {id:23,name:"Cà Mau",old:["Bạc Liêu","Cà Mau"]},
+        {id:24,name:"An Giang",old:["Kiên Giang","An Giang"]},
+        {id:25,name:"Huế",old:["Thừa Thiên Huế"]},
+        {id:26,name:"Lai Châu",old:["Lai Châu"]},
+        {id:27,name:"Điện Biên",old:["Điện Biên"]},
+        {id:28,name:"Sơn La",old:["Sơn La"]},
+        {id:29,name:"Lạng Sơn",old:["Lạng Sơn"]},
+        {id:30,name:"Quảng Ninh",old:["Quảng Ninh"]},
+        {id:31,name:"Thanh Hóa",old:["Thanh Hóa"]},
+        {id:32,name:"Nghệ An",old:["Nghệ An"]},
+        {id:33,name:"Hà Tĩnh",old:["Hà Tĩnh"]},
+        {id:34,name:"Cao Bằng",old:["Cao Bằng"]}
+    ];
+
+    function removeAccents(str){
+        return str.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D');
+    }
+
+    function getGroup(name){
+        let clean = removeAccents(name.toLowerCase());
+        return mergerPlan.find(p=>p.old.some(o=>clean.includes(removeAccents(o.toLowerCase()))));
+    }
+
+    // Khởi tạo bản đồ
+    var map = L.map('map').setView([15.8, 107.5], 6);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+    // Biển Đông Label
+    L.marker([13, 111], {
+        icon: L.divIcon({
+            className: 'sea-label',
+            html: '<div style="font-size:24px; color:#4a90e2; opacity:0.5; letter-spacing:8px;">BIỂN ĐÔNG</div>'
+        })
+    }).addTo(map);
+
+    // Hoàng Sa - Trường Sa
+    L.circleMarker([16.5, 112], {radius:7, color:"#ff9800", fillColor:"#ff9800", fillOpacity:1}).addTo(map).bindTooltip("QĐ. Hoàng Sa (Đà Nẵng)", {permanent:true});
+    L.circleMarker([9.5, 114], {radius:7, color:"#00bcd4", fillColor:"#00bcd4", fillOpacity:1}).addTo(map).bindTooltip("QĐ. Trường Sa (Khánh Hòa)", {permanent:true});
+
+    // Load GeoJSON
+    fetch('https://raw.githubusercontent.com/TungTh/tungth.github.io/master/data/vn-provinces.json')
+    .then(r => r.json())
+    .then(data => {
+        let groups = {};
+        data.features.forEach(f => {
+            let g = getGroup(f.properties.Name);
+            if(!g) return;
+            if(!groups[g.id]) groups[g.id] = { info: g, features: [] };
+            groups[g.id].features.push(f);
+        });
+
+        let merged = [];
+        Object.values(groups).forEach(g => {
+            let m = g.features[0];
+            for(let i=1; i<g.features.length; i++){
+                try { m = turf.union(m, g.features[i]); } catch(e){}
+            }
+            m.properties = g.info;
+            merged.push(m);
+        });
+
+        L.geoJSON(merged, {
+            style: f => ({
+                fillColor: `hsl(${(f.properties.id * 137.5) % 360}, 70%, 65%)`,
+                weight: 1.2, color: "#fff", fillOpacity: 0.8
+            }),
+            onEachFeature: (f, l) => {
+                l.on({
+                    mouseover: (e) => { e.target.setStyle({ fillOpacity: 1, weight: 2 }); },
+                    mouseout: (e) => { e.target.setStyle({ fillOpacity: 0.8, weight: 1.2 }); },
+                    click: () => {
+                        let g = f.properties;
+                        let d = provinceData[g.name] || { vitri: "Đang cập nhật", danso: "Đang cập nhật", diinh: "Đang cập nhật", kinhte: "Đang cập nhật" };
+                        
+                        document.getElementById("speech").innerHTML = `Đây là vùng <b>${g.name}</b>, cùng xem qua nhé! `;
+                        
+                        document.getElementById("details").innerHTML = `
+                            <div class="card">
+                                <h3>${g.name}</h3>
+                                <div class="info-row">
+                                    <i class="material-icons">explore</i>
+                                    <span><b>Vị trí:</b> <span class="info-text">${d.vitri}</span></span>
+                                </div>
+                                <div class="info-row">
+                                    <i class="material-icons">groups</i>
+                                    <span><b>Dân số:</b> <span class="info-text">${d.danso}</span></span>
+                                </div>
+                                <div class="info-row">
+                                    <i class="material-icons">landscape</i>
+                                    <span><b>Địa hình:</b> <span class="info-text">${d.diinh}</span></span>
+                                </div>
+                                <div class="info-row">
+                                    <i class="material-icons">payments</i>
+                                    <span><b> Kinh tế:</b> <span class="info-text">${d.kinhte}</span></span>
+                                </div>
+                                <div class="badge-container">
+                                    <p style="font-size:0.85em; color:#95a5a6; margin-bottom:5px;">Sáp nhập từ:</p>
+                                    <div class="badge">${g.old.join(" + ")}</div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+            }
+        }).addTo(map);
+    });
+</script>
+</body>
+</html>
