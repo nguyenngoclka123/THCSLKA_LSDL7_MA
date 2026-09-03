@@ -9,12 +9,19 @@
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: #f0f2f5; color: #333; }
         
         /* Navigation */
-        nav { background: var(--primary); padding: 10px 40px; display: flex; align-items: center; justify-content: space-between; color: white; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        nav {   display:flex;
+			align-items:center;
+			justify-content:space-evenly;
+			flex-wrap:nowrap;
+			background: var(--primary); padding: 5px 30px; display: flex; align-items: center; justify-content: space-between; color: white; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
         .nav-logo { display: flex; align-items: center; gap: 12px; }
         .nav-logo img { width: 50px; height: 50px; border-radius: 50%; background: white; border: 2px solid var(--accent); }
         .nav-links { display: flex; gap: 60px; }
-        .nav-links a { color: white; text-decoration: none; font-weight: bold; cursor: pointer; padding: 8px 15px; border-radius: 20px; transition: 0.3s; }
-        .nav-links a:hover { background: rgba(255,255,255,0.2); color: var(--accent); }
+        .nav-links a {  
+		white-space:nowrap;
+		font-size:clamp(14px,1.5vw,24px);
+		color: white; text-decoration: none; font-weight: bold; cursor: pointer; padding: 5px 5px; border-radius: 20px; transition: 0.3s; }
+		.nav-links a:hover { background: rgba(255,255,255,0.2); color: var(--accent); }
 
         /* Content Container */
         .main-container { max-width: 1000px; margin: 30px auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); min-height: 600px; }
